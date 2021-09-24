@@ -2,7 +2,7 @@
 #include <RTClib.h>               //https://github.com/adafruit/RTClib
 
 #define DIN 3     //Neopixel DIN pin to Arduino Pin
-#define PIXELS 48 //Number of LED pixels
+#define PIXELS 461 //Number of LED pixels
 
 RTC_DS3231 timer;
 Adafruit_NeoPixel led_strip = Adafruit_NeoPixel(PIXELS, DIN, NEO_GRB + NEO_KHZ800);
@@ -14,8 +14,8 @@ struct RGB
 
 //Details of a specific RGB color at a second in the day
 struct ColorFrame
-{   RGB color;
-    int time_point;
+{   RGB  color;
+    long time_point;
 };
 
 // Compares two RGB colors to test if they are the same
@@ -24,8 +24,13 @@ bool operator==(const RGB &l, const RGB &r)
 }
 
 //Returns the number of seconds in the day
-int getSecondsOfDay(const DateTime &date)
-{   return date.hour() * 3600 + date.minute() * 60 + date.second();
+long getSecondsOfDay(const DateTime &date)
+{   return date.hour() * 3600l + date.minute() * 60l + date.second();
+}
+
+//Returns the number of seconds from hh:mm::ss format
+long getSeconds(int hr, int min, int sec)
+{   return hr * 3600l + min * 60l + sec;
 }
 
 //Transitions from one value to another at some progress %
@@ -38,8 +43,13 @@ float ratio(float start, float curr, float end)
 {   return (curr - start) / (end - start);
 }
 
+//Checks if the time is between ColorFrame A and B's time 
+bool isValidFrame(const long time, const long a, const long b)
+{   return !((a<=b && time>b) || (a>b && time>b && time<a));
+}
+
 //Derives a RGB LED_Color by tweening one color frame to the other
-void getColor(const int time, const ColorFrame &c1, const ColorFrame &c2, RGB &res)
+void getColor(const long time, const ColorFrame &c1, const ColorFrame &c2, RGB &res)
 {   
     float rate;
     
@@ -60,21 +70,22 @@ void getColor(const int time, const ColorFrame &c1, const ColorFrame &c2, RGB &r
     };
 }
 
-//Checks if the time is between ColorFrame A and B's time 
-bool isValidFrame(const int time, const int a, const int b)
-{   return !((a<=b && time>b) || (a>b && time>b && time<a));
-}
-
-int counter = 0;
 int now_idx = 0;
 int nxt_idx = 0;
 RGB col;
 
-const int color_count = 3;
+const int color_count = 10;
 ColorFrame colors[color_count] = {
-    { 255, 0, 0, 0  },
-    { 0, 255, 0, 10 },
-    { 0, 0, 255, 20 },
+    { 255,   0, 150, getSeconds( 0, 00, 00) },
+    {   0,   0,  20, getSeconds( 0, 30, 00) },
+    {   0,   0,  20, getSeconds( 1, 00, 00) },
+    {   0,   0,   0, getSeconds( 1, 30, 00) },
+    {   0,   0,   0, getSeconds(11, 30, 00) },
+    { 223, 100,  29, getSeconds(12, 00, 00) },
+    { 255,   0, 150, getSeconds(13, 00, 00) },
+    { 129, 192, 216, getSeconds(14, 00, 00) },
+    { 129, 192, 216, getSeconds(21, 30, 00) },
+    { 255,   0, 150, getSeconds(22, 30, 00) }
 };
 
 void setup() 
@@ -87,8 +98,10 @@ void setup()
     //Setting up timer
     timer.adjust(DateTime(F(__DATE__), F(__TIME__)));
 
-    //Lighting up one pixel
-    led_strip.setPixelColor(0, Adafruit_NeoPixel::Color(0,0,0));
+    //Clearing the pixels to be off 
+    for(int i = 0; i < PIXELS; i++)
+    { led_strip.setPixelColor(i, Adafruit_NeoPixel::Color(0,0,0));
+    }
     led_strip.show();
 
     //Setup next index
@@ -97,28 +110,18 @@ void setup()
 
 void loop() 
 {
-    //char date[10] = "hh:mm:ss";
-    //timer.now().toString(date);
-    //Serial.println(date);
-
-    int time = counter;//getSecondsOfDay(timer.now());
+    long time = getSecondsOfDay(timer.now());
     while(!isValidFrame(time, colors[now_idx].time_point, colors[nxt_idx].time_point))
     {   now_idx = nxt_idx;
         nxt_idx = (nxt_idx + 1) % color_count;
     }
 
-    getColor(counter, colors[now_idx], colors[nxt_idx], col);
-    led_strip.setPixelColor(0, Adafruit_NeoPixel::Color(col.r, col.g, col.b));
+    getColor(time, colors[now_idx], colors[nxt_idx], col);
+
+    for(int i = 0; i < PIXELS; i++)
+    {   led_strip.setPixelColor(i, Adafruit_NeoPixel::Color(col.r, col.g, col.b));
+    }
+
     led_strip.show();
-    
-    Serial.print(now_idx, DEC);
-    Serial.print("-");
-    Serial.print(nxt_idx, DEC);
-    Serial.print(" ");
-    Serial.println(time, DEC);
-
     delay(1000);
-
-    if(++counter == 30)
-        counter = 0;
 }
