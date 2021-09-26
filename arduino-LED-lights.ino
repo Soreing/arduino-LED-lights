@@ -2,7 +2,7 @@
 #include <RTClib.h>               //https://github.com/adafruit/RTClib
 
 #define DIN 3     //Neopixel DIN pin to Arduino Pin
-#define PIXELS 461 //Number of LED pixels
+#define PIXELS 160//460 //Number of LED pixels
 
 RTC_DS3231 timer;
 Adafruit_NeoPixel led_strip = Adafruit_NeoPixel(PIXELS, DIN, NEO_GRB + NEO_KHZ800);
@@ -48,6 +48,20 @@ bool isValidFrame(const long time, const long a, const long b)
 {   return !((a<=b && time>b) || (a>b && time>b && time<a));
 }
 
+//Returns the largest number in an RGB color to set brightness 
+unsigned char getBrightness(const RGB &c)
+{
+    if( c.r >= c.g && c.r >= c.b)
+    {   return c.r;
+    } 
+    if( c.g >= c.r && c.g >= c.b)
+    {   return c.g;
+    } 
+    else
+    {   return c.b;
+    }
+}
+
 //Derives a RGB LED_Color by tweening one color frame to the other
 void getColor(const long time, const ColorFrame &c1, const ColorFrame &c2, RGB &res)
 {   
@@ -57,10 +71,10 @@ void getColor(const long time, const ColorFrame &c1, const ColorFrame &c2, RGB &
     {   rate = ratio(c1.time_point, time, c2.time_point );
     }
     else if(time < c1.time_point)
-    {   rate = ratio(c1.time_point, time+30, c2.time_point+30);
+    {   rate = ratio(c1.time_point, time+86400, c2.time_point+86400);
     }
     else
-    {   rate = ratio(c1.time_point, time, c2.time_point+30);
+    {   rate = ratio(c1.time_point, time, c2.time_point+86400);
     }
 
     res = RGB{
@@ -96,9 +110,10 @@ void setup()
     timer.begin();
 
     //Setting up timer
-    timer.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    //timer.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    timer.adjust(DateTime(2018, 01, 01, 8, 00, 0));
 
-    //Clearing the pixels to be off 
+    //Lighting up one pixel
     for(int i = 0; i < PIXELS; i++)
     { led_strip.setPixelColor(i, Adafruit_NeoPixel::Color(0,0,0));
     }
@@ -117,6 +132,7 @@ void loop()
     }
 
     getColor(time, colors[now_idx], colors[nxt_idx], col);
+    led_strip.setBrightness(getBrightness(col));
 
     for(int i = 0; i < PIXELS; i++)
     {   led_strip.setPixelColor(i, Adafruit_NeoPixel::Color(col.r, col.g, col.b));
